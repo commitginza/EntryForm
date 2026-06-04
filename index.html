@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Football Assist 申込フォーム</title>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --card: #ffffff;
+      --text: #172033;
+      --muted: #64748b;
+      --border: #d9e2ec;
+      --accent: #06c755;
+      --accent-dark: #05a947;
+      --danger: #dc2626;
+      --warning: #fff7ed;
+      --warning-border: #fed7aa;
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+      line-height: 1.6;
+    }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 20px 16px 44px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+    }
+    .eyebrow { color: var(--accent-dark); font-weight: 800; font-size: 13px; margin-bottom: 8px; }
+    h1 { font-size: 24px; line-height: 1.35; margin: 0 0 8px; }
+    h2 { font-size: 18px; margin: 24px 0 12px; padding-top: 18px; border-top: 1px solid var(--border); }
+    .description, .help, .muted { color: var(--muted); white-space: pre-wrap; }
+    .field { margin-bottom: 18px; }
+    label, .field-label { display: block; font-weight: 800; margin-bottom: 8px; }
+    .required { color: #fff; background: var(--danger); border-radius: 999px; padding: 2px 7px; font-size: 11px; margin-left: 6px; vertical-align: 1px; }
+    input[type="text"], input[type="email"], input[type="tel"], input[type="number"], input[type="date"], select, textarea {
+      width: 100%; border: 1px solid var(--border); border-radius: 12px; padding: 12px 13px; font-size: 16px; background: #fff; color: var(--text); outline: none;
+    }
+    input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(6, 199, 85, 0.16); }
+    textarea { min-height: 120px; resize: vertical; }
+    .choice { display: flex; align-items: center; gap: 8px; padding: 8px 0; }
+    .choice input { width: 18px; height: 18px; }
+    .notice { background: var(--warning); border: 1px solid var(--warning-border); border-radius: 12px; padding: 12px 14px; color: #7c2d12; margin: 14px 0 18px; font-size: 14px; }
+    .line-profile { display: flex; gap: 12px; align-items: center; background: #f8fafc; border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-top: 12px; }
+    .line-profile img { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; background: #e2e8f0; }
+    .line-profile .name { font-weight: 800; }
+    .line-profile .sub { color: var(--muted); font-size: 12px; }
+    .actions { display: grid; gap: 10px; margin-top: 24px; }
+    button, .button-like { appearance: none; border: none; border-radius: 999px; background: var(--accent); color: #fff; font-weight: 800; font-size: 16px; padding: 14px 20px; cursor: pointer; text-align: center; text-decoration: none; display: block; }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    .secondary { background: #e2e8f0; color: #0f172a; }
+    .error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; border-radius: 12px; padding: 12px 14px; margin: 12px 0; white-space: pre-wrap; }
+    .success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; border-radius: 12px; padding: 16px; margin: 12px 0; white-space: pre-wrap; }
+    .hidden { display: none !important; }
+    .loading { display: grid; place-items: center; gap: 10px; min-height: 180px; color: var(--muted); text-align: center; }
+    .spinner { width: 32px; height: 32px; border: 3px solid #dbeafe; border-top-color: var(--accent); border-radius: 50%; animation: spin 0.9s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .form-list { display: grid; gap: 12px; margin-top: 18px; }
+    .form-card { border: 1px solid var(--border); border-radius: 14px; padding: 16px; background: #fff; cursor: pointer; }
+    .form-card:hover { border-color: var(--accent); }
+    .form-card .category { color: var(--accent-dark); font-size: 12px; font-weight: 800; }
+    .form-card .title { font-weight: 900; font-size: 18px; margin-top: 4px; }
+    .form-card .period { font-size: 12px; color: var(--muted); margin-top: 8px; }
+    .footer-note { color: var(--muted); font-size: 12px; margin-top: 16px; text-align: center; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="card">
+      <div id="loading" class="loading">
+        <div class="spinner"></div>
+        <div>読み込んでいます...</div>
+      </div>
+
+      <div id="app" class="hidden">
+        <div class="eyebrow">LINE連携フォーム</div>
+        <h1 id="pageTitle">申込フォーム</h1>
+        <p id="pageDescription" class="description"></p>
+        <div id="lineProfile" class="line-profile hidden"></div>
+        <div id="message"></div>
+
+        <div id="listArea" class="hidden">
+          <div class="form-list" id="formList"></div>
+        </div>
+
+        <form id="entryForm" class="hidden" novalidate>
+          <div id="profileSelectorArea" class="hidden">
+            <h2>選手情報</h2>
+            <div class="notice">以前に登録した選手情報がある場合は選択してください。新しく登録する場合は「新しい選手を登録する」を選んでください。</div>
+            <div class="field">
+              <label for="profileSelector">登録済み選手</label>
+              <select id="profileSelector"></select>
+            </div>
+          </div>
+
+          <div id="fields"></div>
+
+          <div class="actions">
+            <button id="submitButton" type="submit">送信する</button>
+            <button id="backButton" type="button" class="secondary hidden">フォーム一覧へ戻る</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="footer-note">Football Assist</div>
+    </div>
+  </main>
+
+  <script>
+    // 必ず変更してください
+    const LIFF_ID = "YOUR_LIFF_ID";
+    const API_BASE = "https://reike33cdc.execute-api.ap-northeast-1.amazonaws.com/";
+    const DEFAULT_FORM_ID = ""; // 空なら一覧表示。特定フォームに固定したい場合だけ form_id を入れる
+
+    const state = {
+      idToken: "",
+      formId: "",
+      category: "",
+      form: null,
+      questions: [],
+      user: null,
+      profiles: [],
+      lineProfile: null,
+      selectedProfileId: "",
+    };
+
+    const els = {
+      loading: document.getElementById("loading"),
+      app: document.getElementById("app"),
+      title: document.getElementById("pageTitle"),
+      description: document.getElementById("pageDescription"),
+      lineProfile: document.getElementById("lineProfile"),
+      message: document.getElementById("message"),
+      listArea: document.getElementById("listArea"),
+      formList: document.getElementById("formList"),
+      form: document.getElementById("entryForm"),
+      fields: document.getElementById("fields"),
+      profileSelectorArea: document.getElementById("profileSelectorArea"),
+      profileSelector: document.getElementById("profileSelector"),
+      submitButton: document.getElementById("submitButton"),
+      backButton: document.getElementById("backButton"),
+    };
+
+    main().catch(showFatal);
+
+    async function main() {
+      const params = new URLSearchParams(location.search);
+      state.formId = params.get("form_id") || params.get("form") || DEFAULT_FORM_ID;
+      state.category = params.get("category") || "";
+
+      await liff.init({ liffId: LIFF_ID });
+      if (!liff.isLoggedIn()) {
+        liff.login({ redirectUri: location.href });
+        return;
+      }
+      state.idToken = liff.getIDToken();
+      if (!state.idToken) throw new Error("LINE IDトークンを取得できませんでした。LIFFのopenidスコープを確認してください。");
+
+      if (state.formId) {
+        await loadForm(state.formId);
+      } else {
+        await loadFormList(state.category);
+      }
+    }
+
+    async function loadFormList(category) {
+      const url = new URL(API_BASE + "/forms");
+      if (category) url.searchParams.set("category", category);
+      const data = await apiGet(url.toString());
+      showApp();
+      els.title.textContent = category ? "受付中フォーム" : "フォーム一覧";
+      els.description.textContent = category ? "受付中のフォームを選択してください。" : "リッチメニューから選ぶか、下記のフォームを選択してください。";
+      els.listArea.classList.remove("hidden");
+      els.form.classList.add("hidden");
+      renderFormList(data.forms || []);
+    }
+
+    function renderFormList(forms) {
+      els.formList.innerHTML = "";
+      if (!forms.length) {
+        els.formList.innerHTML = `<div class="notice">現在受付中のフォームはありません。</div>`;
+        return;
+      }
+      forms.forEach(form => {
+        const card = document.createElement("div");
+        card.className = "form-card";
+        card.innerHTML = `
+          <div class="category">${escapeHtml(form.category || "受付フォーム")}</div>
+          <div class="title">${escapeHtml(form.form_name || form.form_id)}</div>
+          <div class="muted">${escapeHtml(shortText(form.description || form.reply_message || "", 120))}</div>
+          <div class="period">${escapeHtml(periodText(form))}</div>
+        `;
+        card.addEventListener("click", () => {
+          const params = new URLSearchParams(location.search);
+          params.set("form_id", form.form_id);
+          params.delete("mode");
+          history.pushState(null, "", `${location.pathname}?${params.toString()}`);
+          loadForm(form.form_id).catch(showFatal);
+        });
+        els.formList.appendChild(card);
+      });
+    }
+
+    async function loadForm(formId) {
+      const url = new URL(API_BASE + "/form");
+      url.searchParams.set("form_id", formId);
+      const data = await apiGet(url.toString());
+
+      state.form = data.form;
+      state.questions = data.questions || [];
+      state.user = data.user || null;
+      state.profiles = data.profiles || [];
+      state.lineProfile = data.lineProfile || null;
+      state.selectedProfileId = state.profiles[0]?.profile_id || "";
+
+      showApp();
+      els.listArea.classList.add("hidden");
+      els.form.classList.remove("hidden");
+      els.title.textContent = state.form.form_name || "申込フォーム";
+      els.description.textContent = state.form.description || "";
+      renderLineProfile();
+      renderProfileSelector();
+      renderFields();
+      els.backButton.classList.toggle("hidden", !state.category && !new URLSearchParams(location.search).has("mode"));
+    }
+
+    function renderLineProfile() {
+      if (!state.lineProfile) return;
+      const picture = state.lineProfile.picture || "";
+      els.lineProfile.innerHTML = `
+        ${picture ? `<img src="${escapeAttr(picture)}" alt="">` : `<div style="width:44px;height:44px;border-radius:50%;background:#e2e8f0"></div>`}
+        <div>
+          <div class="name">${escapeHtml(state.lineProfile.displayName || "LINEユーザー")}</div>
+          <div class="sub">LINE認証済み</div>
+        </div>
+      `;
+      els.lineProfile.classList.remove("hidden");
+    }
+
+    function renderProfileSelector() {
+      const usesProfile = state.questions.some(q => (q.profile_field || "").startsWith("profiles."));
+      els.profileSelectorArea.classList.toggle("hidden", !usesProfile);
+      if (!usesProfile) return;
+
+      els.profileSelector.innerHTML = "";
+      state.profiles.forEach(profile => {
+        const option = document.createElement("option");
+        option.value = profile.profile_id;
+        option.textContent = `${profile.player_name || "名前未設定"}${profile.grade ? " / " + profile.grade : ""}`;
+        els.profileSelector.appendChild(option);
+      });
+      const newOption = document.createElement("option");
+      newOption.value = "";
+      newOption.textContent = "新しい選手を登録する";
+      els.profileSelector.appendChild(newOption);
+      els.profileSelector.value = state.selectedProfileId;
+      els.profileSelector.onchange = () => {
+        state.selectedProfileId = els.profileSelector.value;
+        renderFields();
+      };
+    }
+
+    function renderFields() {
+      els.fields.innerHTML = "";
+      const selectedProfile = state.profiles.find(p => p.profile_id === state.selectedProfileId) || null;
+      const groups = groupQuestions(state.questions);
+
+      for (const group of groups) {
+        if (group.title) {
+          const h = document.createElement("h2");
+          h.textContent = group.title;
+          els.fields.appendChild(h);
+        }
+        group.questions.forEach(q => {
+          if (q.field_key === "player_select") return;
+          const div = buildField(q, selectedProfile);
+          els.fields.appendChild(div);
+        });
+      }
+    }
+
+    function groupQuestions(questions) {
+      const userQs = [];
+      const profileQs = [];
+      const formQs = [];
+      questions.forEach(q => {
+        const pf = q.profile_field || "";
+        if (pf.startsWith("users.")) userQs.push(q);
+        else if (pf.startsWith("profiles.")) profileQs.push(q);
+        else formQs.push(q);
+      });
+      const groups = [];
+      if (userQs.length) groups.push({ title: "申込者情報", questions: userQs });
+      if (profileQs.length) groups.push({ title: "選手情報の入力", questions: profileQs });
+      if (formQs.length) groups.push({ title: "フォーム内容", questions: formQs });
+      return groups;
+    }
+
+    function buildField(q, selectedProfile) {
+      const field = document.createElement("div");
+      field.className = "field";
+      field.dataset.fieldKey = q.field_key;
+      const required = isTrue(q.required) ? `<span class="required">必須</span>` : "";
+      const help = q.help_text ? `<div class="help">${escapeHtml(q.help_text)}</div>` : "";
+      const label = `<label for="field_${escapeAttr(q.field_key)}">${escapeHtml(q.label || q.field_key)}${required}</label>`;
+      const value = getInitialValue(q, selectedProfile);
+      field.innerHTML = label + renderInput(q, value) + help;
+      return field;
+    }
+
+    function getInitialValue(q, selectedProfile) {
+      const pf = q.profile_field || "";
+      if (pf.startsWith("users.") && state.user) return state.user[pf.split(".")[1]] || q.default_value || "";
+      if (pf.startsWith("profiles.") && selectedProfile) return selectedProfile[pf.split(".")[1]] || q.default_value || "";
+      return q.default_value || "";
+    }
+
+    function renderInput(q, value) {
+      const key = escapeAttr(q.field_key);
+      const type = (q.type || "text").toLowerCase();
+      const options = parseOptions(q.options);
+      if (type === "textarea") return `<textarea id="field_${key}" name="${key}">${escapeHtml(value)}</textarea>`;
+      if (type === "select") {
+        return `<select id="field_${key}" name="${key}"><option value="">選択してください</option>${options.map(opt => `<option value="${escapeAttr(opt)}" ${opt === value ? "selected" : ""}>${escapeHtml(opt)}</option>`).join("")}</select>`;
+      }
+      if (type === "radio") {
+        return `<div>${options.map(opt => `<label class="choice"><input type="radio" name="${key}" value="${escapeAttr(opt)}" ${opt === value ? "checked" : ""}>${escapeHtml(opt)}</label>`).join("")}</div>`;
+      }
+      if (type === "checkbox") {
+        const selected = Array.isArray(value) ? value : String(value || "").split(",").map(v => v.trim()).filter(Boolean);
+        return `<div>${options.map(opt => `<label class="choice"><input type="checkbox" name="${key}" value="${escapeAttr(opt)}" ${selected.includes(opt) ? "checked" : ""}>${escapeHtml(opt)}</label>`).join("")}</div>`;
+      }
+      const htmlType = ["email", "tel", "number", "date"].includes(type) ? type : "text";
+      return `<input type="${htmlType}" id="field_${key}" name="${key}" value="${escapeAttr(value)}">`;
+    }
+
+    els.form.addEventListener("submit", async event => {
+      event.preventDefault();
+      clearMessage();
+      els.submitButton.disabled = true;
+      els.submitButton.textContent = "送信中...";
+      try {
+        const answers = collectAnswers();
+        const result = await apiPost(API_BASE + "/submit", {
+          form_id: state.form.form_id,
+          profile_id: state.selectedProfileId,
+          answers,
+        });
+        showMessage(result.message || "送信が完了しました。", "success");
+        els.form.classList.add("hidden");
+      } catch (error) {
+        showMessage(error.message || "送信に失敗しました。", "error");
+      } finally {
+        els.submitButton.disabled = false;
+        els.submitButton.textContent = "送信する";
+      }
+    });
+
+    els.backButton.addEventListener("click", () => {
+      const params = new URLSearchParams(location.search);
+      params.delete("form_id");
+      params.set("mode", "list");
+      history.pushState(null, "", `${location.pathname}?${params.toString()}`);
+      loadFormList(params.get("category") || state.category).catch(showFatal);
+    });
+
+    function collectAnswers() {
+      const answers = {};
+      state.questions.forEach(q => {
+        const key = q.field_key;
+        if (!key || key === "player_select") return;
+        const type = (q.type || "text").toLowerCase();
+        if (type === "checkbox") {
+          answers[key] = [...document.querySelectorAll(`[name="${cssEscape(key)}"]:checked`)].map(el => el.value);
+        } else if (type === "radio") {
+          answers[key] = document.querySelector(`[name="${cssEscape(key)}"]:checked`)?.value || "";
+        } else {
+          answers[key] = document.querySelector(`[name="${cssEscape(key)}"]`)?.value || "";
+        }
+      });
+      return answers;
+    }
+
+    async function apiGet(url) {
+      const res = await fetch(url, { headers: { Authorization: "Bearer " + state.idToken } });
+      return handleApiResponse(res);
+    }
+
+    async function apiPost(url, body) {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + state.idToken },
+        body: JSON.stringify(body),
+      });
+      return handleApiResponse(res);
+    }
+
+    async function handleApiResponse(res) {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) throw new Error(data.message || `API Error: ${res.status}`);
+      return data;
+    }
+
+    function showApp() {
+      els.loading.classList.add("hidden");
+      els.app.classList.remove("hidden");
+    }
+
+    function showFatal(error) {
+      els.loading.classList.add("hidden");
+      els.app.classList.remove("hidden");
+      showMessage(error.message || String(error), "error");
+    }
+
+    function showMessage(text, type) { els.message.innerHTML = `<div class="${type}">${escapeHtml(text)}</div>`; }
+    function clearMessage() { els.message.innerHTML = ""; }
+    function parseOptions(text) { return String(text || "").split(/\r?\n|,/).map(v => v.trim()).filter(Boolean); }
+    function isTrue(value) { return [true, "true", "TRUE", "1", 1, "yes", "YES", "同意する", "はい", "有効"].includes(value); }
+    function periodText(form) { return [form.start_at ? `開始: ${form.start_at}` : "", form.end_at ? `締切: ${form.end_at}` : ""].filter(Boolean).join(" / "); }
+    function shortText(text, max) { const s = String(text || ""); return s.length > max ? s.slice(0, max - 1) + "…" : s; }
+    function escapeHtml(value) { return String(value ?? "").replace(/[&<>'"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;","\"":"&quot;"}[c])); }
+    function escapeAttr(value) { return escapeHtml(value); }
+    function cssEscape(value) { return window.CSS && CSS.escape ? CSS.escape(value) : String(value).replace(/"/g, "\\\""); }
+  </script>
+</body>
+</html>
