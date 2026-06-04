@@ -82,8 +82,8 @@
       </div>
 
       <div id="app" class="hidden">
-        <div class="eyebrow">LINE連携フォーム</div>
-        <h1 id="pageTitle">申込フォーム</h1>
+        <div class="eyebrow">エントリーフォーム</div>
+        <h1 id="pageTitle">エントリーフォーム</h1>
         <p id="pageDescription" class="description"></p>
         <div id="lineProfile" class="line-profile hidden"></div>
         <div id="message"></div>
@@ -178,7 +178,7 @@
       const data = await apiGet(url.toString());
       showApp();
       els.title.textContent = category ? "受付中フォーム" : "フォーム一覧";
-      els.description.textContent = category ? "受付中のフォームを選択してください。" : "リッチメニューから選ぶか、下記のフォームを選択してください。";
+      els.description.textContent = category ? "受付中のフォームを選択してください。" : "下記のフォームを選択してください。";
       els.listArea.classList.remove("hidden");
       els.form.classList.add("hidden");
       renderFormList(data.forms || []);
