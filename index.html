@@ -50,10 +50,16 @@
     .choice { display: flex; align-items: center; gap: 8px; padding: 8px 0; }
     .choice input { width: 18px; height: 18px; }
     .notice { background: var(--warning); border: 1px solid var(--warning-border); border-radius: 12px; padding: 12px 14px; color: #7c2d12; margin: 14px 0 18px; font-size: 14px; }
-    .line-profile { display: flex; gap: 12px; align-items: center; background: #f8fafc; border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-top: 12px; }
-    .line-profile img { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; background: #e2e8f0; }
-    .line-profile .name { font-weight: 800; }
-    .line-profile .sub { color: var(--muted); font-size: 12px; }
+    .line-account { display: grid; grid-template-columns: 44px 1fr; gap: 12px; align-items: start; background: #f8fafc; border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-top: 12px; }
+    .line-account img, .avatar-placeholder { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; background: #e2e8f0; }
+    .line-account .name { font-weight: 800; }
+    .line-account .sub { color: var(--muted); font-size: 12px; }
+    .info-grid { display: grid; gap: 6px; margin-top: 10px; }
+    .info-row { display: grid; grid-template-columns: 86px 1fr; gap: 8px; font-size: 13px; }
+    .info-row .label { color: var(--muted); font-weight: 700; }
+    .info-row .value { color: var(--text); font-weight: 800; word-break: break-word; }
+    .badge { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 800; background: #dcfce7; color: #166534; }
+    .badge.warning { background: #ffedd5; color: #9a3412; }
     .actions { display: grid; gap: 10px; margin-top: 24px; }
     button, .button-like { appearance: none; border: none; border-radius: 999px; background: var(--accent); color: #fff; font-weight: 800; font-size: 16px; padding: 14px 20px; cursor: pointer; text-align: center; text-decoration: none; display: block; }
     button:disabled { opacity: 0.55; cursor: not-allowed; }
@@ -67,6 +73,8 @@
     .form-list { display: grid; gap: 12px; margin-top: 18px; }
     .form-card { border: 1px solid var(--border); border-radius: 14px; padding: 16px; background: #fff; cursor: pointer; }
     .form-card:hover { border-color: var(--accent); }
+    .form-card.locked { background: #f8fafc; opacity: 0.78; }
+    .form-card.locked:hover { border-color: var(--warning-border); }
     .form-card .category { color: var(--accent-dark); font-size: 12px; font-weight: 800; }
     .form-card .title { font-weight: 900; font-size: 18px; margin-top: 4px; }
     .form-card .period { font-size: 12px; color: var(--muted); margin-top: 8px; }
@@ -82,10 +90,10 @@
       </div>
 
       <div id="app" class="hidden">
-        <div class="eyebrow">エントリーフォーム</div>
-        <h1 id="pageTitle">エントリーフォーム</h1>
+        <div class="eyebrow">LINE連携フォーム</div>
+        <h1 id="pageTitle">申込フォーム</h1>
         <p id="pageDescription" class="description"></p>
-        <div id="lineProfile" class="line-profile hidden"></div>
+        <div id="lineAccount" class="line-account hidden"></div>
         <div id="message"></div>
 
         <div id="listArea" class="hidden">
@@ -93,15 +101,6 @@
         </div>
 
         <form id="entryForm" class="hidden" novalidate>
-          <div id="profileSelectorArea" class="hidden">
-            <h2>選手情報</h2>
-            <div class="notice">以前に登録した選手情報がある場合は選択してください。新しく登録する場合は「新しい選手を登録する」を選んでください。</div>
-            <div class="field">
-              <label for="profileSelector">登録済み選手</label>
-              <select id="profileSelector"></select>
-            </div>
-          </div>
-
           <div id="fields"></div>
 
           <div class="actions">
@@ -120,6 +119,7 @@
     const LIFF_ID = "2010103214-DQCWwMnb";
     const API_BASE = "https://reike33cdc.execute-api.ap-northeast-1.amazonaws.com/";
     const DEFAULT_FORM_ID = ""; // 空なら一覧表示。特定フォームに固定したい場合だけ form_id を入れる
+    const REGISTRANT_FORM_ID = "registrant_info";
 
     const state = {
       idToken: "",
@@ -128,9 +128,10 @@
       form: null,
       questions: [],
       user: null,
-      profiles: [],
       lineProfile: null,
-      selectedProfileId: "",
+      registrantComplete: false,
+      forcedRegistration: false,
+      requestedFormId: "",
     };
 
     const els = {
@@ -138,14 +139,12 @@
       app: document.getElementById("app"),
       title: document.getElementById("pageTitle"),
       description: document.getElementById("pageDescription"),
-      lineProfile: document.getElementById("lineProfile"),
+      lineAccount: document.getElementById("lineAccount"),
       message: document.getElementById("message"),
       listArea: document.getElementById("listArea"),
       formList: document.getElementById("formList"),
       form: document.getElementById("entryForm"),
       fields: document.getElementById("fields"),
-      profileSelectorArea: document.getElementById("profileSelectorArea"),
-      profileSelector: document.getElementById("profileSelector"),
       submitButton: document.getElementById("submitButton"),
       backButton: document.getElementById("backButton"),
     };
@@ -162,8 +161,11 @@
         liff.login({ redirectUri: location.href });
         return;
       }
+
       state.idToken = liff.getIDToken();
-      if (!state.idToken) throw new Error("LINE IDトークンを取得できませんでした。LIFFのopenidスコープを確認してください。");
+      if (!state.idToken) {
+        throw new Error("LINE IDトークンを取得できませんでした。LIFFのopenidスコープを確認してください。");
+      }
 
       if (state.formId) {
         await loadForm(state.formId);
@@ -176,9 +178,20 @@
       const url = new URL(API_BASE + "/forms");
       if (category) url.searchParams.set("category", category);
       const data = await apiGet(url.toString());
+
+      state.user = data.user || null;
+      state.lineProfile = data.lineProfile || null;
+      state.registrantComplete = !!data.registrantComplete;
+      state.forcedRegistration = false;
+      state.requestedFormId = "";
+
       showApp();
+      clearMessage();
       els.title.textContent = category ? "受付中フォーム" : "フォーム一覧";
-      els.description.textContent = category ? "受付中のフォームを選択してください。" : "下記のフォームを選択してください。";
+      els.description.textContent = state.registrantComplete
+        ? "受付中のフォームを選択してください。登録者情報はいつでも確認・修正できます。"
+        : "先に登録者情報を入力すると、各種エントリーへ進めます。";
+      renderLineAccount();
       els.listArea.classList.remove("hidden");
       els.form.classList.add("hidden");
       renderFormList(data.forms || []);
@@ -190,143 +203,157 @@
         els.formList.innerHTML = `<div class="notice">現在受付中のフォームはありません。</div>`;
         return;
       }
+
       forms.forEach(form => {
+        const locked = !!form.locked && !form.is_registration_form;
         const card = document.createElement("div");
-        card.className = "form-card";
+        card.className = "form-card" + (locked ? " locked" : "");
+        const statusBadge = form.is_registration_form
+          ? `<span class="badge ${state.registrantComplete ? "" : "warning"}">${state.registrantComplete ? "登録済み" : "最初に入力"}</span>`
+          : (locked ? `<span class="badge warning">登録者情報が必要</span>` : "");
         card.innerHTML = `
-          <div class="category">${escapeHtml(form.category || "受付フォーム")}</div>
+          <div class="category">${escapeHtml(form.category || "受付フォーム")} ${statusBadge}</div>
           <div class="title">${escapeHtml(form.form_name || form.form_id)}</div>
-          <div class="muted">${escapeHtml(shortText(form.description || form.reply_message || "", 120))}</div>
+          <div class="muted">${escapeHtml(shortText(locked ? (form.lock_message || "先に登録者情報を入力してください。") : (form.description || form.reply_message || ""), 120))}</div>
           <div class="period">${escapeHtml(periodText(form))}</div>
         `;
         card.addEventListener("click", () => {
+          const nextFormId = locked ? REGISTRANT_FORM_ID : form.form_id;
           const params = new URLSearchParams(location.search);
-          params.set("form_id", form.form_id);
+          params.set("form_id", nextFormId);
+          if (locked) params.set("requested_form_id", form.form_id);
+          else params.delete("requested_form_id");
           params.delete("mode");
           history.pushState(null, "", `${location.pathname}?${params.toString()}`);
-          loadForm(form.form_id).catch(showFatal);
+          if (locked) showMessage("各種エントリーの前に、登録者情報を入力してください。", "error");
+          loadForm(nextFormId).catch(showFatal);
         });
         els.formList.appendChild(card);
       });
     }
 
     async function loadForm(formId) {
+      const params = new URLSearchParams(location.search);
+      const requestedFromUrl = params.get("requested_form_id") || "";
       const url = new URL(API_BASE + "/form");
       url.searchParams.set("form_id", formId);
       const data = await apiGet(url.toString());
 
       state.form = data.form;
-      state.questions = data.questions || [];
+      state.questions = filterRenderableQuestions(data.questions || []);
       state.user = data.user || null;
-      state.profiles = data.profiles || [];
       state.lineProfile = data.lineProfile || null;
-      state.selectedProfileId = state.profiles[0]?.profile_id || "";
+      state.registrantComplete = !!data.registrantComplete;
+      state.forcedRegistration = !!data.forcedRegistration;
+      state.requestedFormId = data.requestedFormId || requestedFromUrl || "";
 
       showApp();
       els.listArea.classList.add("hidden");
       els.form.classList.remove("hidden");
       els.title.textContent = state.form.form_name || "申込フォーム";
       els.description.textContent = state.form.description || "";
-      renderLineProfile();
-      renderProfileSelector();
+      renderLineAccount();
       renderFields();
-      els.backButton.classList.toggle("hidden", !state.category && !new URLSearchParams(location.search).has("mode"));
+      if (data.notice) showMessage(data.notice, "error");
+      else clearMessage();
+      els.submitButton.textContent = isRegistrationForm() ? "登録者情報を保存する" : "送信する";
+      const shouldShowBack = isRegistrationForm() || state.category || new URLSearchParams(location.search).has("mode");
+      els.backButton.classList.toggle("hidden", !shouldShowBack);
     }
 
-    function renderLineProfile() {
+    function filterRenderableQuestions(questions) {
+      return questions.filter(q => {
+        const profileField = String(q.profile_field || "");
+        if (isRegistrationForm()) {
+          return !profileField || profileField.startsWith("users.");
+        }
+        return !profileField;
+      });
+    }
+
+    function renderLineAccount() {
       if (!state.lineProfile) return;
       const picture = state.lineProfile.picture || "";
-      els.lineProfile.innerHTML = `
-        ${picture ? `<img src="${escapeAttr(picture)}" alt="">` : `<div style="width:44px;height:44px;border-radius:50%;background:#e2e8f0"></div>`}
+      const user = state.user || {};
+      const status = state.registrantComplete ? "登録済み" : "未登録";
+      const rows = [
+        ["登録者情報", `<span class="badge ${state.registrantComplete ? "" : "warning"}">${status}</span>`],
+        ["氏名", user.name || "未入力"],
+        ["フリガナ", user.kana || "未入力"],
+        ["電話番号", user.phone ? formatPhoneNumber(user.phone) : "未入力"],
+        ["メール", user.email || "未入力"],
+      ];
+      els.lineAccount.innerHTML = `
+        ${picture ? `<img src="${escapeAttr(picture)}" alt="">` : `<div class="avatar-placeholder"></div>`}
         <div>
           <div class="name">${escapeHtml(state.lineProfile.displayName || "LINEユーザー")}</div>
           <div class="sub">LINE認証済み</div>
+          <div class="info-grid">
+            ${rows.map(([label, value]) => `
+              <div class="info-row">
+                <span class="label">${escapeHtml(label)}</span>
+                <span class="value">${String(value).startsWith("<span") ? value : escapeHtml(value)}</span>
+              </div>
+            `).join("")}
+          </div>
         </div>
       `;
-      els.lineProfile.classList.remove("hidden");
-    }
-
-    function renderProfileSelector() {
-      const usesProfile = state.questions.some(q => (q.profile_field || "").startsWith("profiles."));
-      els.profileSelectorArea.classList.toggle("hidden", !usesProfile);
-      if (!usesProfile) return;
-
-      els.profileSelector.innerHTML = "";
-      state.profiles.forEach(profile => {
-        const option = document.createElement("option");
-        option.value = profile.profile_id;
-        option.textContent = `${profile.player_name || "名前未設定"}${profile.grade ? " / " + profile.grade : ""}`;
-        els.profileSelector.appendChild(option);
-      });
-      const newOption = document.createElement("option");
-      newOption.value = "";
-      newOption.textContent = "新しい選手を登録する";
-      els.profileSelector.appendChild(newOption);
-      els.profileSelector.value = state.selectedProfileId;
-      els.profileSelector.onchange = () => {
-        state.selectedProfileId = els.profileSelector.value;
-        renderFields();
-      };
+      els.lineAccount.classList.remove("hidden");
     }
 
     function renderFields() {
       els.fields.innerHTML = "";
-      const selectedProfile = state.profiles.find(p => p.profile_id === state.selectedProfileId) || null;
       const groups = groupQuestions(state.questions);
-
       for (const group of groups) {
         if (group.title) {
           const h = document.createElement("h2");
           h.textContent = group.title;
           els.fields.appendChild(h);
         }
-        group.questions.forEach(q => {
-          if (q.field_key === "player_select") return;
-          const div = buildField(q, selectedProfile);
-          els.fields.appendChild(div);
-        });
+        group.questions.forEach(q => els.fields.appendChild(buildField(q)));
       }
+      attachPhoneFormatters();
     }
 
     function groupQuestions(questions) {
-      const userQs = [];
-      const profileQs = [];
-      const formQs = [];
+      const registrantQuestions = [];
+      const entryQuestions = [];
       questions.forEach(q => {
-        const pf = q.profile_field || "";
-        if (pf.startsWith("users.")) userQs.push(q);
-        else if (pf.startsWith("profiles.")) profileQs.push(q);
-        else formQs.push(q);
+        const profileField = String(q.profile_field || "");
+        if (isRegistrationForm() && profileField.startsWith("users.")) registrantQuestions.push(q);
+        else entryQuestions.push(q);
       });
+
       const groups = [];
-      if (userQs.length) groups.push({ title: "申込者情報", questions: userQs });
-      if (profileQs.length) groups.push({ title: "選手情報の入力", questions: profileQs });
-      if (formQs.length) groups.push({ title: "フォーム内容", questions: formQs });
+      if (registrantQuestions.length) groups.push({ title: "登録者情報", questions: registrantQuestions });
+      if (entryQuestions.length) groups.push({ title: isRegistrationForm() ? "その他" : "フォーム内容", questions: entryQuestions });
       return groups;
     }
 
-    function buildField(q, selectedProfile) {
+    function buildField(q) {
       const field = document.createElement("div");
       field.className = "field";
       field.dataset.fieldKey = q.field_key;
       const required = isTrue(q.required) ? `<span class="required">必須</span>` : "";
       const help = q.help_text ? `<div class="help">${escapeHtml(q.help_text)}</div>` : "";
       const label = `<label for="field_${escapeAttr(q.field_key)}">${escapeHtml(q.label || q.field_key)}${required}</label>`;
-      const value = getInitialValue(q, selectedProfile);
+      const value = getInitialValue(q);
       field.innerHTML = label + renderInput(q, value) + help;
       return field;
     }
 
-    function getInitialValue(q, selectedProfile) {
-      const pf = q.profile_field || "";
-      if (pf.startsWith("users.") && state.user) return state.user[pf.split(".")[1]] || q.default_value || "";
-      if (pf.startsWith("profiles.") && selectedProfile) return selectedProfile[pf.split(".")[1]] || q.default_value || "";
-      return q.default_value || "";
+    function getInitialValue(q) {
+      const profileField = String(q.profile_field || "");
+      let value = q.default_value || "";
+      if (profileField.startsWith("users.") && state.user) {
+        value = state.user[profileField.split(".")[1]] || value;
+      }
+      return isPhoneQuestion(q) ? formatPhoneNumber(value) : value;
     }
 
     function renderInput(q, value) {
       const key = escapeAttr(q.field_key);
-      const type = (q.type || "text").toLowerCase();
+      const type = String(q.type || "text").toLowerCase();
       const options = parseOptions(q.options);
       if (type === "textarea") return `<textarea id="field_${key}" name="${key}">${escapeHtml(value)}</textarea>`;
       if (type === "select") {
@@ -340,7 +367,8 @@
         return `<div>${options.map(opt => `<label class="choice"><input type="checkbox" name="${key}" value="${escapeAttr(opt)}" ${selected.includes(opt) ? "checked" : ""}>${escapeHtml(opt)}</label>`).join("")}</div>`;
       }
       const htmlType = ["email", "tel", "number", "date"].includes(type) ? type : "text";
-      return `<input type="${htmlType}" id="field_${key}" name="${key}" value="${escapeAttr(value)}">`;
+      const phoneAttrs = isPhoneQuestion(q) ? ` inputmode="tel" autocomplete="tel" data-phone="true"` : "";
+      return `<input type="${htmlType}" id="field_${key}" name="${key}" value="${escapeAttr(value)}"${phoneAttrs}>`;
     }
 
     els.form.addEventListener("submit", async event => {
@@ -348,26 +376,46 @@
       clearMessage();
       els.submitButton.disabled = true;
       els.submitButton.textContent = "送信中...";
+      const wasRegistration = isRegistrationForm();
+      const requestedFormId = state.requestedFormId;
       try {
         const answers = collectAnswers();
         const result = await apiPost(API_BASE + "/submit", {
           form_id: state.form.form_id,
-          profile_id: state.selectedProfileId,
           answers,
         });
         showMessage(result.message || "送信が完了しました。", "success");
-        els.form.classList.add("hidden");
+        if (wasRegistration) {
+          state.registrantComplete = true;
+          if (requestedFormId) {
+            const params = new URLSearchParams(location.search);
+            params.set("form_id", requestedFormId);
+            params.delete("requested_form_id");
+            history.pushState(null, "", `${location.pathname}?${params.toString()}`);
+            await loadForm(requestedFormId);
+          } else {
+            const params = new URLSearchParams(location.search);
+            params.delete("form_id");
+            params.delete("requested_form_id");
+            params.set("mode", "list");
+            history.pushState(null, "", `${location.pathname}?${params.toString()}`);
+            await loadFormList(params.get("category") || state.category);
+          }
+        } else {
+          els.form.classList.add("hidden");
+        }
       } catch (error) {
         showMessage(error.message || "送信に失敗しました。", "error");
       } finally {
         els.submitButton.disabled = false;
-        els.submitButton.textContent = "送信する";
+        els.submitButton.textContent = isRegistrationForm() ? "登録者情報を保存する" : "送信する";
       }
     });
 
     els.backButton.addEventListener("click", () => {
       const params = new URLSearchParams(location.search);
       params.delete("form_id");
+      params.delete("requested_form_id");
       params.set("mode", "list");
       history.pushState(null, "", `${location.pathname}?${params.toString()}`);
       loadFormList(params.get("category") || state.category).catch(showFatal);
@@ -377,17 +425,52 @@
       const answers = {};
       state.questions.forEach(q => {
         const key = q.field_key;
-        if (!key || key === "player_select") return;
-        const type = (q.type || "text").toLowerCase();
+        if (!key) return;
+        const type = String(q.type || "text").toLowerCase();
         if (type === "checkbox") {
           answers[key] = [...document.querySelectorAll(`[name="${cssEscape(key)}"]:checked`)].map(el => el.value);
         } else if (type === "radio") {
           answers[key] = document.querySelector(`[name="${cssEscape(key)}"]:checked`)?.value || "";
         } else {
-          answers[key] = document.querySelector(`[name="${cssEscape(key)}"]`)?.value || "";
+          let value = document.querySelector(`[name="${cssEscape(key)}"]`)?.value || "";
+          if (isPhoneQuestion(q)) value = formatPhoneNumber(value);
+          answers[key] = value;
         }
       });
       return answers;
+    }
+
+    function isRegistrationForm() {
+      return !!state.form?.is_registration_form || state.form?.form_id === REGISTRANT_FORM_ID;
+    }
+
+    function isPhoneQuestion(q) {
+      const type = String(q.type || "").toLowerCase();
+      const key = String(q.field_key || "").toLowerCase();
+      const profileField = String(q.profile_field || "").toLowerCase();
+      const label = String(q.label || "");
+      return type === "tel" || key.includes("phone") || key.includes("tel") || profileField.includes("phone") || profileField.includes("tel") || label.includes("電話");
+    }
+
+    function attachPhoneFormatters() {
+      document.querySelectorAll('[data-phone="true"]').forEach(input => {
+        input.addEventListener("blur", () => { input.value = formatPhoneNumber(input.value); });
+      });
+    }
+
+    function formatPhoneNumber(value) {
+      const raw = String(value || "").trim();
+      if (!raw) return "";
+      const normalized = raw.replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0)).replace(/[ー－―‐]/g, "-");
+      const digits = normalized.replace(/\D/g, "");
+      if (!digits || !digits.startsWith("0")) return raw;
+      if (digits.length === 10 && /^(0120|0800|0570)/.test(digits)) return `${digits.slice(0, 4)}-${digits.slice(4, 7)}-${digits.slice(7)}`;
+      if (digits.length === 11) return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+      if (digits.length === 10 && /^(03|06)/.test(digits)) return `${digits.slice(0, 2)}-${digits.slice(2, 6)}-${digits.slice(6)}`;
+      if (digits.length === 10) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+      if (digits.length === 9 && /^(03|06)/.test(digits)) return `${digits.slice(0, 2)}-${digits.slice(2, 5)}-${digits.slice(5)}`;
+      if (digits.length === 9) return `${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}`;
+      return raw;
     }
 
     async function apiGet(url) {
